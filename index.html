@@ -156,29 +156,56 @@ async function ensureSheet({create=true}={}) {
 }
 function rows() {
   const days=Object.keys(entries).filter(day=>Object.values(entries[day]??{}).some(Number.isInteger) || entries[day]?.note).sort();
-  const dateSerial=day=>{const [year,month,date]=day.split('-').map(Number);return Math.floor(Date.UTC(year,month-1,date)/86400000)+25569;};
   return [['Datum','Morgen','Nachmittag','Abend','Notizen'],...days.map(day=>[dateSerial(day),...PERIODS.map(({key})=>entries[day]?.[key] ?? ''),entries[day]?.note ?? ''])];
 }
-function weekdayRows() {
+function dateSerial(day) { const [year,month,date]=day.split('-').map(Number);return Math.floor(Date.UTC(year,month-1,date)/86400000)+25569; }
+async function statsDateRange() {
+  const result=await api(`${SHEETS}/${sync.sheetId}/values/${encodeURIComponent(`'${STATS_TAB}'!B1:D1`)}?valueRenderOption=UNFORMATTED_VALUE`);
+  const row=result.values?.[0] ?? [];
+  const dates=Object.keys(entries).filter(day=>/^\d{4}-\d{2}-\d{2}$/.test(day)&&(Object.values(entries[day]??{}).some(Number.isInteger)||entries[day]?.note)).map(dateSerial).filter(Number.isFinite);
+  const startDefault=dates.length?Math.min(...dates):dateSerial(localDate());
+  const endDefault=dates.length?Math.max(...dates):dateSerial(localDate());
+  const start=typeof row[0]==='number'&&Number.isFinite(row[0])?row[0]:startDefault;
+  const end=typeof row[2]==='number'&&Number.isFinite(row[2])?row[2]:endDefault;
+  return {start,end};
+}
+function weekdayRows({start,end}) {
   const names=['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag','Sonntag'];
-  const values=names.map((name,index)=>({name,day:index+1,periods:PERIODS.map(()=>[])}));
-  for (const [date,entry] of Object.entries(entries)) {
-    const weekday=(new Date(`${date}T12:00:00`).getDay()+6)%7;
-    PERIODS.forEach(({key},i)=>{ if (Number.isInteger(entry?.[key]) && entry[key]>=1 && entry[key]<=10) values[weekday].periods[i].push(entry[key]); });
-  }
-  return [['Wochentag','Morgen n','Morgen Ø','Nachmittag n','Nachmittag Ø','Abend n','Abend Ø'],...values.map(({name,periods})=>[name,...periods.flatMap(scores=>[scores.length,scores.length?Math.round(scores.reduce((sum,n)=>sum+n,0)/scores.length*100)/100:''])])];
+  const moodCols=['B','C','D'];
+  return [
+    ['Startdatum',start,'Enddatum',end],
+    [],
+    ['Wochentag','Morgen n','Morgen Ø','Nachmittag n','Nachmittag Ø','Abend n','Abend Ø'],
+    ...names.map((name,index)=>{
+      const day=index+1;
+      const formulas=moodCols.flatMap(col=>{
+        const dates=`'${TAB}'!$A$2:$A$10000`, scores=`'${TAB}'!$${col}$2:$${col}$10000`;
+        const weekday=`IFERROR(WEEKDAY(${dates},2),0)=${day}`;
+        const filters=`${dates}>=$B$1,${dates}<=$D$1,${weekday}`;
+        return [`=SUMPRODUCT(--(${dates}>=$B$1),--(${dates}<=$D$1),--(${weekday}),--ISNUMBER(${scores}))`,
+          `=IFERROR(AVERAGE(FILTER(${scores},${filters})),"")`];
+      });
+      return [name,...formulas];
+    }),
+  ];
 }
 async function upload() {
   if (syncing) return; syncing=true; syncError=''; syncNotice=''; $('syncMsg').textContent='Lade ins Sheet hoch …'; $('syncMsg').classList.remove('err'); $('syncGo').disabled=true;
   try {
     await ensureSheet();
+    const statsRange=await statsDateRange();
     for (const tab of [TAB,STATS_TAB]) await api(`${SHEETS}/${sync.sheetId}/values/${encodeURIComponent(`'${tab}'`)}:clear`,{method:'POST',body:'{}'});
     const writeTab=(tab,values)=>api(`${SHEETS}/${sync.sheetId}/values/${encodeURIComponent(`'${tab}'!A1`)}?valueInputOption=RAW`,{method:'PUT',body:JSON.stringify({majorDimension:'ROWS',values})});
     await writeTab(TAB,rows());
-    await writeTab(STATS_TAB,weekdayRows());
+    await api(`${SHEETS}/${sync.sheetId}/values/${encodeURIComponent(`'${STATS_TAB}'!A1`)}?valueInputOption=USER_ENTERED`,{method:'PUT',body:JSON.stringify({majorDimension:'ROWS',values:weekdayRows(statsRange)})});
     const meta=await api(`${SHEETS}/${sync.sheetId}?fields=sheets.properties(sheetId,title)`);
     const moodSheet=meta.sheets.find(sheet=>sheet.properties.title===TAB).properties.sheetId;
-    await api(`${SHEETS}/${sync.sheetId}:batchUpdate`,{method:'POST',body:JSON.stringify({requests:[{repeatCell:{range:{sheetId:moodSheet,startRowIndex:1,startColumnIndex:0,endColumnIndex:1},cell:{userEnteredFormat:{numberFormat:{type:'DATE',pattern:'dd.MM.yyyy'}}},fields:'userEnteredFormat.numberFormat'}}]})});
+    const statsSheet=meta.sheets.find(sheet=>sheet.properties.title===STATS_TAB).properties.sheetId;
+    await api(`${SHEETS}/${sync.sheetId}:batchUpdate`,{method:'POST',body:JSON.stringify({requests:[
+      {repeatCell:{range:{sheetId:moodSheet,startRowIndex:1,startColumnIndex:0,endColumnIndex:1},cell:{userEnteredFormat:{numberFormat:{type:'DATE',pattern:'dd.MM.yyyy'}}},fields:'userEnteredFormat.numberFormat'}},
+      ...[1,3].map(column=>({repeatCell:{range:{sheetId:statsSheet,startRowIndex:0,endRowIndex:1,startColumnIndex:column,endColumnIndex:column+1},cell:{userEnteredFormat:{numberFormat:{type:'DATE',pattern:'dd.MM.yyyy'}}},fields:'userEnteredFormat.numberFormat'}})),
+      ...[1,3].map(column=>({setDataValidation:{range:{sheetId:statsSheet,startRowIndex:0,endRowIndex:1,startColumnIndex:column,endColumnIndex:column+1},rule:{condition:{type:'DATE_IS_VALID'},strict:true,showCustomUi:true}}})),
+    ]})});
     sync.lastSync=Date.now(); saveSync(); syncError='';
   } catch(err) { syncError=err.message||String(err); }
   finally { syncing=false; refreshSyncUI(); }
