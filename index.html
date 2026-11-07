@@ -3,8 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#f4f2ec" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#171b1a" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f4f2ec">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Stimmung">
@@ -17,11 +16,13 @@
     :root { color-scheme:dark; --bg:#171b1a; --card:#222826; --ink:#edf2ee; --muted:#a0aaa3; --line:#39423e; --accent:#83bba4; --soft:#2b4037; --bad:#ff938a; }
     dialog { box-shadow:0 20px 60px #0009; }
   }
+  :root[data-theme="light"] { color-scheme:light; --bg:#f4f2ec; --card:#fffefa; --ink:#24312e; --muted:#77817b; --line:#e6e4dc; --accent:#467c6d; --soft:#e4eee8; --bad:#a74440; }
+  :root[data-theme="dark"] { color-scheme:dark; --bg:#171b1a; --card:#222826; --ink:#edf2ee; --muted:#a0aaa3; --line:#39423e; --accent:#83bba4; --soft:#2b4037; --bad:#ff938a; }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   body { margin:0 auto; max-width:600px; padding:max(24px,env(safe-area-inset-top)) 18px max(28px,env(safe-area-inset-bottom)); background:var(--bg); color:var(--ink); font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
   header { display:flex; align-items:flex-start; justify-content:space-between; margin:8px 0 24px; }
   h1 { margin:0; font-size:25px; letter-spacing:-.04em; } header p { margin:3px 0 0; color:var(--muted); font-size:14px; }
-  .mark { display:grid; place-items:center; width:42px; height:42px; border-radius:15px; color:var(--accent); background:var(--soft); font-size:22px; }
+  .mark { display:grid; place-items:center; width:42px; height:42px; border:0; border-radius:15px; color:var(--accent); background:var(--soft); font:inherit; font-size:22px; line-height:1; cursor:pointer; }
   .datebar { display:grid; grid-template-columns:42px minmax(0,1fr) 42px; align-items:center; gap:7px 10px; margin-bottom:16px; }
   .datebar button { flex:none; width:42px; height:42px; border:1px solid var(--line); border-radius:13px; background:var(--card); color:var(--ink); font:inherit; font-size:22px; }
   input[type=date] { flex:1; min-width:0; border:1px solid var(--line); border-radius:13px; padding:10px 12px; background:var(--card); color:var(--ink); font:600 16px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
@@ -57,7 +58,7 @@
 </style>
 </head>
 <body>
-<header><div><h1>Stimmungstagebuch</h1><p>Kleine Check-ins über den Tag</p></div><div class="mark" aria-hidden="true">☀</div></header>
+<header><div><h1>Stimmungstagebuch</h1><p>Kleine Check-ins über den Tag</p></div><button class="mark" id="themeToggle" type="button" aria-label="Dunkelmodus aktivieren" title="Dunkelmodus aktivieren">☀</button></header>
 <main>
   <div class="datebar">
     <button id="prevDay" aria-label="Vorheriger Tag">‹</button>
@@ -65,7 +66,6 @@
     <button id="nextDay" aria-label="Nächster Tag">›</button>
     <button class="today" id="goToday">Heute</button>
   </div>
-  <p class="prompt">Wie fühlst du dich in diesem Abschnitt? Wähle eine Zahl von 1 bis 10.</p>
   <div id="periods"></div>
   <label class="notes" for="note">Notizen <textarea id="note" maxlength="5000" placeholder="Was möchtest du zu diesem Tag festhalten?"></textarea></label>
   <p class="saved" id="saved" aria-live="polite"></p>
@@ -75,10 +75,10 @@
 </main>
 <dialog id="syncDlg">
   <h2>Google Sheets</h2>
-  <p id="syncInfo">Deine Stimmungseinträge werden in ein eigenes Sheet in deinem Google Drive geschrieben.</p>
+  <p id="syncInfo">Du kannst Einträge ins Sheet hochladen oder von dort auf dieses Gerät laden. Beim Laden werden vorhandene lokale Einträge nach Bestätigung ersetzt.</p>
   <p class="msg" id="syncMsg" aria-live="polite"></p>
   <div class="actions"><button id="syncClose">Schließen</button><button class="primary" id="syncGo">Ins Sheet hochladen</button></div>
-  <div class="links"><a id="syncOpen" target="_blank" rel="noopener" hidden>Sheet öffnen</a><button id="syncDisconnect" hidden>Trennen</button></div>
+  <div class="links"><button id="syncPull">Vom Sheet laden</button><a id="syncOpen" target="_blank" rel="noopener" hidden>Sheet öffnen</a><button id="syncDisconnect" hidden>Trennen</button></div>
 </dialog>
 <script>
 const CLIENT_ID = '1019469281637-cvr48b89o8j5umaeoai43fdbps938nm6.apps.googleusercontent.com';
@@ -89,7 +89,7 @@ const $ = id => document.getElementById(id);
 const PERIODS = [{key:'morning', label:'Morgen'}, {key:'afternoon', label:'Nachmittag'}, {key:'evening', label:'Abend'}];
 let entries = readJSON(STORAGE_KEY, {});
 let sync = readJSON(SYNC_KEY, {});
-let tokenClient = null, afterToken = null, syncing = false, syncError = '';
+let tokenClient = null, afterToken = null, syncing = false, syncError = '', syncNotice = '';
 function readJSON(key, fallback) { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } }
 function saveEntries() { localStorage.setItem(STORAGE_KEY, JSON.stringify(entries)); }
 function saveSync() { localStorage.setItem(SYNC_KEY, JSON.stringify({sheetId:sync.sheetId,lastSync:sync.lastSync})); }
@@ -138,21 +138,26 @@ window.addEventListener('online',loadGis);
 function withToken(action) { if (sync.token && sync.tokenExp>Date.now()) return action(); if (!tokenClient) { fail(navigator.onLine?'Google-Anmeldung lädt noch. Bitte gleich nochmal tippen.':'Keine Internetverbindung.'); return; } afterToken=action; tokenClient.requestAccessToken({prompt:''}); }
 async function api(url,opts={}) { const res=await fetch(url,{...opts,headers:{Authorization:`Bearer ${sync.token}`,'Content-Type':'application/json'}}); if(res.status===401){sync.token=null;throw new Error('Anmeldung abgelaufen. Bitte nochmal hochladen.');} const body=await res.json().catch(()=>({})); if(!res.ok) throw new Error(body.error?.message||`Google meldet Fehler ${res.status}.`); return body; }
 const SHEETS='https://sheets.googleapis.com/v4/spreadsheets';
-async function ensureSheet() {
+async function ensureSheet({create=true}={}) {
   if (!sync.sheetId) {
     const q=encodeURIComponent(`name='${SHEET_TITLE}' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false`);
     const found=await api(`https://www.googleapis.com/drive/v3/files?q=${q}&orderBy=modifiedTime desc&fields=files(id)`);
     sync.sheetId=found.files?.[0]?.id;
   }
-  if (!sync.sheetId) { const created=await api(SHEETS,{method:'POST',body:JSON.stringify({properties:{title:SHEET_TITLE},sheets:[{properties:{title:TAB}},{properties:{title:STATS_TAB}}]})}); sync.sheetId=created.spreadsheetId; saveSync(); return; }
+  if (!sync.sheetId) {
+    if (!create) throw new Error('Kein Stimmungstagebuch-Sheet gefunden. Bitte zuerst auf einem Gerät hochladen.');
+    const created=await api(SHEETS,{method:'POST',body:JSON.stringify({properties:{title:SHEET_TITLE},sheets:[{properties:{title:TAB}},{properties:{title:STATS_TAB}}]})}); sync.sheetId=created.spreadsheetId; saveSync(); return;
+  }
   const meta=await api(`${SHEETS}/${sync.sheetId}?fields=sheets.properties.title`);
   const titles=new Set(meta.sheets.map(s=>s.properties.title));
+  if (!create && !titles.has(TAB)) throw new Error('Im Sheet fehlt der Tab „Stimmung“.');
   const missing=[TAB,STATS_TAB].filter(title=>!titles.has(title));
-  if (missing.length) await api(`${SHEETS}/${sync.sheetId}:batchUpdate`,{method:'POST',body:JSON.stringify({requests:missing.map(title=>({addSheet:{properties:{title}}}))})});
+  if (create && missing.length) await api(`${SHEETS}/${sync.sheetId}:batchUpdate`,{method:'POST',body:JSON.stringify({requests:missing.map(title=>({addSheet:{properties:{title}}}))})});
 }
 function rows() {
   const days=Object.keys(entries).filter(day=>Object.values(entries[day]??{}).some(Number.isInteger) || entries[day]?.note).sort();
-  return [['Datum','Morgen','Nachmittag','Abend','Notizen'],...days.map(day=>[day,...PERIODS.map(({key})=>entries[day]?.[key] ?? ''),entries[day]?.note ?? ''])];
+  const dateSerial=day=>{const [year,month,date]=day.split('-').map(Number);return Math.floor(Date.UTC(year,month-1,date)/86400000)+25569;};
+  return [['Datum','Morgen','Nachmittag','Abend','Notizen'],...days.map(day=>[dateSerial(day),...PERIODS.map(({key})=>entries[day]?.[key] ?? ''),entries[day]?.note ?? ''])];
 }
 function weekdayRows() {
   const names=['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag','Sonntag'];
@@ -164,14 +169,45 @@ function weekdayRows() {
   return [['Wochentag','Morgen n','Morgen Ø','Nachmittag n','Nachmittag Ø','Abend n','Abend Ø'],...values.map(({name,periods})=>[name,...periods.flatMap(scores=>[scores.length,scores.length?Math.round(scores.reduce((sum,n)=>sum+n,0)/scores.length*100)/100:''])])];
 }
 async function upload() {
-  if (syncing) return; syncing=true; syncError=''; $('syncMsg').textContent='Lade ins Sheet hoch …'; $('syncMsg').classList.remove('err'); $('syncGo').disabled=true;
+  if (syncing) return; syncing=true; syncError=''; syncNotice=''; $('syncMsg').textContent='Lade ins Sheet hoch …'; $('syncMsg').classList.remove('err'); $('syncGo').disabled=true;
   try {
     await ensureSheet();
     for (const tab of [TAB,STATS_TAB]) await api(`${SHEETS}/${sync.sheetId}/values/${encodeURIComponent(`'${tab}'`)}:clear`,{method:'POST',body:'{}'});
     const writeTab=(tab,values)=>api(`${SHEETS}/${sync.sheetId}/values/${encodeURIComponent(`'${tab}'!A1`)}?valueInputOption=RAW`,{method:'PUT',body:JSON.stringify({majorDimension:'ROWS',values})});
     await writeTab(TAB,rows());
     await writeTab(STATS_TAB,weekdayRows());
+    const meta=await api(`${SHEETS}/${sync.sheetId}?fields=sheets.properties(sheetId,title)`);
+    const moodSheet=meta.sheets.find(sheet=>sheet.properties.title===TAB).properties.sheetId;
+    await api(`${SHEETS}/${sync.sheetId}:batchUpdate`,{method:'POST',body:JSON.stringify({requests:[{repeatCell:{range:{sheetId:moodSheet,startRowIndex:1,startColumnIndex:0,endColumnIndex:1},cell:{userEnteredFormat:{numberFormat:{type:'DATE',pattern:'dd.MM.yyyy'}}},fields:'userEnteredFormat.numberFormat'}}]})});
     sync.lastSync=Date.now(); saveSync(); syncError='';
+  } catch(err) { syncError=err.message||String(err); }
+  finally { syncing=false; refreshSyncUI(); }
+}
+function sheetDateKey(serial) {
+  if (!Number.isFinite(serial)) return null;
+  const date=new Date(Math.round((serial-25569)*86400000));
+  if (Number.isNaN(date.getTime())) return null;
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth()+1).padStart(2,'0')}-${String(date.getUTCDate()).padStart(2,'0')}`;
+}
+async function downloadFromSheet() {
+  if (syncing) return;
+  syncing=true; syncError=''; syncNotice=''; $('syncMsg').textContent='Lade vom Sheet …'; $('syncMsg').classList.remove('err'); $('syncGo').disabled=true; $('syncPull').disabled=true;
+  try {
+    await ensureSheet({create:false});
+    const result=await api(`${SHEETS}/${sync.sheetId}/values/${encodeURIComponent(`'${TAB}'!A2:E`)}?valueRenderOption=UNFORMATTED_VALUE`);
+    const downloaded={};
+    for (const row of result.values ?? []) {
+      if (row[0]==='' || row[0]==null) continue;
+      const day=sheetDateKey(Number(row[0]));
+      if (!day) continue;
+      const entry={};
+      PERIODS.forEach(({key},index)=>{ const value=row[index+1]; const score=Number(value); if(value!==''&&value!=null&&Number.isInteger(score)&&score>=1&&score<=10) entry[key]=score; });
+      const note=String(row[4] ?? ''); if(note) entry.note=note;
+      if(Object.keys(entry).length) downloaded[day]=entry;
+    }
+    entries=downloaded; saveEntries(); renderDay(); renderHistory();
+    sync.lastSync=Date.now(); saveSync(); syncError='';
+    syncNotice=`Daten vom Sheet geladen (${Object.keys(downloaded).length} Tage).`;
   } catch(err) { syncError=err.message||String(err); }
   finally { syncing=false; refreshSyncUI(); }
 }
@@ -179,15 +215,29 @@ function fail(message) { syncError=message; refreshSyncUI(); }
 function refreshSyncUI() {
   $('syncStatus').innerHTML=syncError?`Sync fehlgeschlagen<small>${escapeHtml(syncError)}</small>`:sync.lastSync?`Zuletzt synchronisiert · ${new Date(sync.lastSync).toLocaleString('de-DE',{dateStyle:'medium',timeStyle:'short'})}<small>Hochladen ersetzt die Daten im Sheet.</small>`:'Mit Google Sheets verbinden<small>Einträge als Tageszeilen sichern</small>';
   if (!$('syncDlg').open) return;
-  $('syncMsg').textContent=syncing?'Lade ins Sheet hoch …':syncError||(sync.lastSync?`Zuletzt synchronisiert: ${new Date(sync.lastSync).toLocaleString('de-DE')}`:'');
-  $('syncMsg').classList.toggle('err',!!syncError); $('syncGo').disabled=syncing; $('syncOpen').hidden=!sync.sheetId; $('syncDisconnect').hidden=!sync.sheetId;
+  $('syncMsg').textContent=syncing?'Synchronisiere …':syncError||syncNotice||(sync.lastSync?`Zuletzt synchronisiert: ${new Date(sync.lastSync).toLocaleString('de-DE')}`:'');
+  $('syncMsg').classList.toggle('err',!!syncError); $('syncGo').disabled=syncing; $('syncPull').disabled=syncing; $('syncOpen').hidden=!sync.sheetId; $('syncDisconnect').hidden=!sync.sheetId;
   if(sync.sheetId) $('syncOpen').href=`https://docs.google.com/spreadsheets/d/${sync.sheetId}/edit`;
 }
 function escapeHtml(s) { return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+const THEME_KEY='moodtracker.theme.v1';
+function applyTheme(theme) {
+  if (theme==='light' || theme==='dark') document.documentElement.dataset.theme=theme;
+  else document.documentElement.removeAttribute('data-theme');
+  const dark=(theme==='dark') || (theme==='auto' && matchMedia('(prefers-color-scheme: dark)').matches);
+  $('themeToggle').textContent=dark?'☾':'☀';
+  $('themeToggle').setAttribute('aria-label',dark?'Hellmodus aktivieren':'Dunkelmodus aktivieren');
+  $('themeToggle').title=dark?'Hellmodus aktivieren':'Dunkelmodus aktivieren';
+  document.querySelector('meta[name="theme-color"]').content=dark?'#171b1a':'#f4f2ec';
+}
 $('date').value=localDate(); buildPeriods(); renderDay(); renderHistory(); refreshSyncUI(); loadGis();
+let theme=localStorage.getItem(THEME_KEY)||'auto'; applyTheme(theme);
+$('themeToggle').addEventListener('click',()=>{ const isDark=document.documentElement.dataset.theme==='dark'||(!document.documentElement.dataset.theme&&matchMedia('(prefers-color-scheme: dark)').matches); theme=isDark?'light':'dark'; localStorage.setItem(THEME_KEY,theme); applyTheme(theme); });
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{if(theme==='auto') applyTheme('auto');});
 $('date').addEventListener('change',renderDay); $('prevDay').addEventListener('click',()=>{$('date').value=shiftDate($('date').value,-1);renderDay();}); $('nextDay').addEventListener('click',()=>{$('date').value=shiftDate($('date').value,1);renderDay();}); $('goToday').addEventListener('click',()=>{$('date').value=localDate();renderDay();});
 $('note').addEventListener('input',ev=>setNote(ev.currentTarget.value));
-$('syncLine').addEventListener('click',()=>{syncError='';$('syncDlg').showModal();refreshSyncUI();}); $('syncClose').addEventListener('click',()=>$('syncDlg').close()); $('syncGo').addEventListener('click',()=>withToken(upload));
+$('syncLine').addEventListener('click',()=>{syncError='';syncNotice='';$('syncDlg').showModal();refreshSyncUI();}); $('syncClose').addEventListener('click',()=>$('syncDlg').close()); $('syncGo').addEventListener('click',()=>withToken(upload));
+$('syncPull').addEventListener('click',()=>{if(Object.keys(entries).length&&!window.confirm('Vom Sheet laden ersetzt alle Einträge auf diesem Gerät. Fortfahren?'))return;withToken(downloadFromSheet);});
 $('syncDisconnect').addEventListener('click',()=>{if(sync.token)google?.accounts?.oauth2?.revoke(sync.token,()=>{});sync={};saveSync();refreshSyncUI();});
 if ('serviceWorker' in navigator) window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
 </script>
