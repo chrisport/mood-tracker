@@ -21,7 +21,8 @@
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   body { margin:0 auto; max-width:600px; padding:max(24px,env(safe-area-inset-top)) 18px max(28px,env(safe-area-inset-bottom)); background:var(--bg); color:var(--ink); font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
   header { display:flex; align-items:flex-start; justify-content:space-between; margin:8px 0 24px; }
-  h1 { margin:0; font-size:25px; letter-spacing:-.04em; } header p { margin:3px 0 0; color:var(--muted); font-size:14px; }
+  .title-line { display:flex; align-items:baseline; gap:8px; }
+  h1 { margin:0; font-size:25px; letter-spacing:-.04em; } .version { padding:1px 5px; border:1px solid var(--line); border-radius:6px; color:var(--muted); font-size:10px; font-variant-numeric:tabular-nums; } header p { margin:3px 0 0; color:var(--muted); font-size:14px; }
   .mark { display:grid; place-items:center; width:42px; height:42px; border:0; border-radius:15px; color:var(--accent); background:var(--soft); font:inherit; font-size:22px; line-height:1; cursor:pointer; }
   .datebar { display:grid; grid-template-columns:42px minmax(0,1fr) 42px; align-items:center; gap:7px 10px; margin-bottom:16px; }
   .datebar button { flex:none; width:42px; height:42px; border:1px solid var(--line); border-radius:13px; background:var(--card); color:var(--ink); font:inherit; font-size:22px; }
@@ -58,7 +59,7 @@
 </style>
 </head>
 <body>
-<header><div><h1>Stimmungstagebuch</h1><p>Kleine Check-ins über den Tag</p></div><button class="mark" id="themeToggle" type="button" aria-label="Dunkelmodus aktivieren" title="Dunkelmodus aktivieren">☀</button></header>
+<header><div><div class="title-line"><h1>Stimmungstagebuch</h1><span class="version" id="appVersion">v…</span></div><p>Kleine Check-ins über den Tag</p></div><button class="mark" id="themeToggle" type="button" aria-label="Dunkelmodus aktivieren" title="Dunkelmodus aktivieren">☀</button></header>
 <main>
   <div class="datebar">
     <button id="prevDay" aria-label="Vorheriger Tag">‹</button>
@@ -174,7 +175,7 @@ function weekdayRows({start,end}) {
   const moodCols=['B','C','D'];
   return [
     ['Startdatum',start,'Enddatum',end],
-    [],
+    ['','','','','','',''],
     ['Wochentag','Morgen n','Morgen Ø','Nachmittag n','Nachmittag Ø','Abend n','Abend Ø'],
     ...names.map((name,index)=>{
       const day=index+1;
@@ -203,7 +204,9 @@ async function upload() {
     const statsSheet=meta.sheets.find(sheet=>sheet.properties.title===STATS_TAB).properties.sheetId;
     await api(`${SHEETS}/${sync.sheetId}:batchUpdate`,{method:'POST',body:JSON.stringify({requests:[
       {repeatCell:{range:{sheetId:moodSheet,startRowIndex:1,startColumnIndex:0,endColumnIndex:1},cell:{userEnteredFormat:{numberFormat:{type:'DATE',pattern:'dd.MM.yyyy'}}},fields:'userEnteredFormat.numberFormat'}},
-      ...[1,3].map(column=>({repeatCell:{range:{sheetId:statsSheet,startRowIndex:0,endRowIndex:1,startColumnIndex:column,endColumnIndex:column+1},cell:{userEnteredFormat:{numberFormat:{type:'DATE',pattern:'dd.MM.yyyy'}}},fields:'userEnteredFormat.numberFormat'}})),
+      ...[1,3].map(column=>({repeatCell:{range:{sheetId:statsSheet,startRowIndex:0,endRowIndex:1,startColumnIndex:column,endColumnIndex:column+1},cell:{userEnteredFormat:{numberFormat:{type:'DATE',pattern:'dd.MM.yyyy'},backgroundColor:{red:0.89,green:0.94,blue:0.91},textFormat:{bold:true}},userEnteredFormat:{numberFormat:{type:'DATE',pattern:'dd.MM.yyyy'},backgroundColor:{red:0.89,green:0.94,blue:0.91},textFormat:{bold:true}}},fields:'userEnteredFormat(numberFormat,backgroundColor,textFormat)'}})),
+      {repeatCell:{range:{sheetId:statsSheet,startRowIndex:0,endRowIndex:1,startColumnIndex:0,endColumnIndex:1},cell:{userEnteredFormat:{textFormat:{bold:true}}},fields:'userEnteredFormat.textFormat'}},
+      {repeatCell:{range:{sheetId:statsSheet,startRowIndex:0,endRowIndex:1,startColumnIndex:2,endColumnIndex:3},cell:{userEnteredFormat:{textFormat:{bold:true}}},fields:'userEnteredFormat.textFormat'}},
       ...[1,3].map(column=>({setDataValidation:{range:{sheetId:statsSheet,startRowIndex:0,endRowIndex:1,startColumnIndex:column,endColumnIndex:column+1},rule:{condition:{type:'DATE_IS_VALID'},strict:true,showCustomUi:true}}})),
     ]})});
     sync.lastSync=Date.now(); saveSync(); syncError='';
@@ -248,6 +251,16 @@ function refreshSyncUI() {
 }
 function escapeHtml(s) { return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 const THEME_KEY='moodtracker.theme.v1';
+async function showVersion() {
+  const tag=$('appVersion'), versionKey='moodtracker.version.v1';
+  tag.textContent=`v${localStorage.getItem(versionKey)||'…'}`;
+  try {
+    const response=await fetch('./sw.js',{cache:'no-store'});
+    if(!response.ok)return;
+    const source=await response.text(), match=source.match(/moodtracker-v(\d+)/);
+    if(match){tag.textContent=`v${match[1]}`;localStorage.setItem(versionKey,match[1]);}
+  } catch {}
+}
 function applyTheme(theme) {
   if (theme==='light' || theme==='dark') document.documentElement.dataset.theme=theme;
   else document.documentElement.removeAttribute('data-theme');
@@ -257,7 +270,7 @@ function applyTheme(theme) {
   $('themeToggle').title=dark?'Hellmodus aktivieren':'Dunkelmodus aktivieren';
   document.querySelector('meta[name="theme-color"]').content=dark?'#171b1a':'#f4f2ec';
 }
-$('date').value=localDate(); buildPeriods(); renderDay(); renderHistory(); refreshSyncUI(); loadGis();
+$('date').value=localDate(); buildPeriods(); renderDay(); renderHistory(); refreshSyncUI(); loadGis(); showVersion();
 let theme=localStorage.getItem(THEME_KEY)||'auto'; applyTheme(theme);
 $('themeToggle').addEventListener('click',()=>{ const isDark=document.documentElement.dataset.theme==='dark'||(!document.documentElement.dataset.theme&&matchMedia('(prefers-color-scheme: dark)').matches); theme=isDark?'light':'dark'; localStorage.setItem(THEME_KEY,theme); applyTheme(theme); });
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{if(theme==='auto') applyTheme('auto');});
