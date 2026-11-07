@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f4f2ec">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Stimmung">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<title>Stimmungstagebuch</title>
+<style>
+  :root { color-scheme: light; --bg:#f4f2ec; --card:#fffefa; --ink:#24312e; --muted:#77817b; --line:#e6e4dc; --accent:#467c6d; --soft:#e4eee8; --bad:#a74440; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { margin:0 auto; max-width:600px; padding:max(24px,env(safe-area-inset-top)) 18px max(28px,env(safe-area-inset-bottom)); background:var(--bg); color:var(--ink); font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+  header { display:flex; align-items:flex-start; justify-content:space-between; margin:8px 0 24px; }
+  h1 { margin:0; font-size:25px; letter-spacing:-.04em; } header p { margin:3px 0 0; color:var(--muted); font-size:14px; }
+  .mark { display:grid; place-items:center; width:42px; height:42px; border-radius:15px; color:var(--accent); background:var(--soft); font-size:22px; }
+  .datebar { display:flex; align-items:center; gap:10px; margin-bottom:16px; }
+  .datebar button { flex:none; width:42px; height:42px; border:1px solid var(--line); border-radius:13px; background:var(--card); color:var(--ink); font:inherit; font-size:22px; }
+  input[type=date] { flex:1; min-width:0; border:1px solid var(--line); border-radius:13px; padding:10px 12px; background:var(--card); color:var(--ink); font:600 16px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+  .today { flex:none; border:0; background:none; color:var(--accent); font:600 14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+  .prompt { margin:0 2px 12px; color:var(--muted); font-size:14px; }
+  .period { margin:0 0 10px; padding:17px; border:1px solid var(--line); border-radius:18px; background:var(--card); }
+  .period-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+  .period h2 { margin:0; font-size:16px; }
+  .rating { min-width:30px; color:var(--accent); font-weight:700; text-align:right; font-variant-numeric:tabular-nums; }
+  .scale { display:grid; grid-template-columns:repeat(10,1fr); gap:5px; }
+  .score { padding:8px 0; border:1px solid var(--line); border-radius:9px; background:transparent; color:var(--muted); font:600 13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; cursor:pointer; }
+  .score[aria-pressed="true"] { border-color:var(--accent); background:var(--accent); color:white; }
+  .ends { display:flex; justify-content:space-between; margin-top:6px; color:var(--muted); font-size:11px; }
+  .saved { min-height:22px; margin:10px 2px 0; color:var(--muted); font-size:12px; }
+  .cloud { display:flex; align-items:center; gap:10px; width:100%; margin-top:18px; padding:13px 14px; border:1px solid var(--line); border-radius:14px; background:var(--card); color:var(--ink); text-align:left; font:inherit; cursor:pointer; }
+  .cloud .cloudtext { flex:1; } .cloud small { display:block; color:var(--muted); font-size:12px; }
+  h3 { margin:30px 2px 10px; font-size:15px; }
+  .history { overflow:hidden; border:1px solid var(--line); border-radius:14px; background:var(--card); }
+  .history table { width:100%; border-collapse:collapse; font-size:13px; }
+  th,td { padding:11px 8px; text-align:center; border-bottom:1px solid var(--line); font-variant-numeric:tabular-nums; }
+  th { color:var(--muted); font-weight:600; font-size:11px; } th:first-child,td:first-child { text-align:left; padding-left:13px; }
+  tr:last-child td { border-bottom:0; } td.day { color:var(--ink); font-weight:600; }
+  .empty { padding:17px; color:var(--muted); font-size:13px; }
+  dialog { width:min(92vw,390px); padding:20px; border:0; border-radius:18px; background:var(--card); color:var(--ink); box-shadow:0 20px 60px #24312e33; }
+  dialog::backdrop { background:#17221f66; } dialog h2 { margin:0 0 8px; font-size:19px; } dialog p { color:var(--muted); font-size:14px; }
+  .msg { min-height:22px; color:var(--muted); font-size:13px; } .msg.err { color:var(--bad); }
+  .actions { display:flex; gap:8px; margin-top:12px; } .actions button { flex:1; padding:12px 8px; border:0; border-radius:11px; background:var(--soft); color:var(--ink); font:600 14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+  .actions .primary { background:var(--accent); color:white; } .links { display:flex; justify-content:center; gap:18px; margin-top:14px; } .links a,.links button { border:0; padding:4px; background:none; color:var(--muted); font:inherit; font-size:13px; text-decoration:underline; }
+  button:focus-visible,input:focus-visible { outline:3px solid #83b7a2; outline-offset:2px; }
+  @media(max-width:380px) { body { padding-left:12px; padding-right:12px; } .period { padding:14px 11px; } .scale { gap:3px; } .score { padding:8px 0; } }
+</style>
+</head>
+<body>
+<header><div><h1>Stimmungstagebuch</h1><p>Kleine Check-ins über den Tag</p></div><div class="mark" aria-hidden="true">☀</div></header>
+<main>
+  <div class="datebar">
+    <button id="prevDay" aria-label="Vorheriger Tag">‹</button>
+    <input id="date" type="date" aria-label="Datum">
+    <button id="nextDay" aria-label="Nächster Tag">›</button>
+    <button class="today" id="goToday">Heute</button>
+  </div>
+  <p class="prompt">Wie fühlst du dich in diesem Abschnitt? Wähle eine Zahl von 1 bis 10.</p>
+  <div id="periods"></div>
+  <p class="saved" id="saved" aria-live="polite"></p>
+  <button class="cloud" id="syncLine"><span aria-hidden="true">☁</span><span class="cloudtext" id="syncStatus">Mit Google Sheets verbinden<small>Einträge als Tageszeilen sichern</small></span><span>›</span></button>
+  <h3>Letzte Einträge</h3>
+  <div class="history" id="history"></div>
+</main>
+<dialog id="syncDlg">
+  <h2>Google Sheets</h2>
+  <p id="syncInfo">Deine Stimmungseinträge werden in ein eigenes Sheet in deinem Google Drive geschrieben.</p>
+  <p class="msg" id="syncMsg" aria-live="polite"></p>
+  <div class="actions"><button id="syncClose">Schließen</button><button class="primary" id="syncGo">Ins Sheet hochladen</button></div>
+  <div class="links"><a id="syncOpen" target="_blank" rel="noopener" hidden>Sheet öffnen</a><button id="syncDisconnect" hidden>Trennen</button></div>
+</dialog>
+<script>
+const CLIENT_ID = '1019469281637-cvr48b89o8j5umaeoai43fdbps938nm6.apps.googleusercontent.com';
+const SCOPE = 'https://www.googleapis.com/auth/drive.file';
+const SHEET_TITLE = 'Stimmungstagebuch (moodtracker)', TAB = 'Stimmung';
+const STORAGE_KEY = 'moodtracker.entries.v1', SYNC_KEY = 'moodtracker.sync.v1';
+const $ = id => document.getElementById(id);
+const PERIODS = [{key:'morning', label:'Morgen'}, {key:'afternoon', label:'Nachmittag'}, {key:'evening', label:'Abend'}];
+let entries = readJSON(STORAGE_KEY, {});
+let sync = readJSON(SYNC_KEY, {});
+let tokenClient = null, afterToken = null, syncing = false, syncError = '';
+function readJSON(key, fallback) { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } }
+function saveEntries() { localStorage.setItem(STORAGE_KEY, JSON.stringify(entries)); }
+function saveSync() { localStorage.setItem(SYNC_KEY, JSON.stringify({sheetId:sync.sheetId,lastSync:sync.lastSync})); }
+function localDate(d = new Date()) { const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}`; }
+function shiftDate(value, by) { const d=new Date(`${value}T12:00:00`); d.setDate(d.getDate()+by); return localDate(d); }
+function niceDate(value, options={weekday:'long',day:'numeric',month:'long',year:'numeric'}) { return new Date(`${value}T12:00:00`).toLocaleDateString('de-DE',options); }
+function buildPeriods() {
+  $('periods').innerHTML = PERIODS.map(({key,label}) => `<section class="period" aria-labelledby="title-${key}"><div class="period-top"><h2 id="title-${key}">${label}</h2><span class="rating" id="value-${key}">–</span></div><div class="scale" role="group" aria-label="${label}: Stimmung von 1 bis 10">${Array.from({length:10},(_,i)=>`<button class="score" data-period="${key}" data-score="${i+1}" aria-label="${i+1} von 10" aria-pressed="false">${i+1}</button>`).join('')}</div><div class="ends"><span>schlecht</span><span>sehr gut</span></div></section>`).join('');
+  document.querySelectorAll('.score').forEach(btn => btn.addEventListener('click', () => setScore(btn.dataset.period, Number(btn.dataset.score))));
+}
+function currentEntry() { return entries[$('date').value] ?? {}; }
+function renderDay() {
+  const day=$('date').value, entry=currentEntry();
+  for (const {key} of PERIODS) {
+    const value=entry[key]; $(`value-${key}`).textContent=value ?? '–';
+    document.querySelectorAll(`[data-period="${key}"]`).forEach(b=>b.setAttribute('aria-pressed', String(Number(b.dataset.score)===value)));
+  }
+  $('saved').textContent=Object.values(entry).some(v=>Number.isInteger(v)) ? `Gespeichert · ${niceDate(day)}` : 'Noch keine Werte für diesen Tag.';
+}
+function setScore(period, score) {
+  const day=$('date').value; if (!entries[day]) entries[day]={};
+  entries[day][period]=score; saveEntries(); renderDay(); renderHistory();
+}
+function renderHistory() {
+  const days=Object.keys(entries).filter(day=>Object.values(entries[day]??{}).some(Number.isInteger)).sort((a,b)=>b.localeCompare(a)).slice(0,14);
+  if (!days.length) { $('history').innerHTML='<div class="empty">Deine Einträge erscheinen hier.</div>'; return; }
+  $('history').innerHTML=`<table><thead><tr><th>Datum</th><th>Morgen</th><th>Nachmittag</th><th>Abend</th></tr></thead><tbody>${days.map(day=>`<tr><td class="day">${niceDate(day,{weekday:'short',day:'numeric',month:'short'})}</td>${PERIODS.map(({key})=>`<td>${entries[day]?.[key] ?? '–'}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+}
+function loadGis() {
+  if (tokenClient || !navigator.onLine || $('gis')) return;
+  const s=document.createElement('script'); s.id='gis'; s.src='https://accounts.google.com/gsi/client'; s.async=true;
+  s.onload=()=>{ tokenClient=google.accounts.oauth2.initTokenClient({client_id:CLIENT_ID,scope:SCOPE,callback:resp=>{ if(resp.error){ fail(`Anmeldung fehlgeschlagen (${resp.error}).`); return; } sync.token=resp.access_token; sync.tokenExp=Date.now()+(Number(resp.expires_in)-60)*1000; const next=afterToken; afterToken=null; next?.(); },error_callback:err=>{afterToken=null; fail(err.type==='popup_closed'?'Anmeldung abgebrochen.':`Anmeldung fehlgeschlagen (${err.type}).`);}}); };
+  s.onerror=()=>s.remove(); document.head.appendChild(s);
+}
+window.addEventListener('online',loadGis);
+function withToken(action) { if (sync.token && sync.tokenExp>Date.now()) return action(); if (!tokenClient) { fail(navigator.onLine?'Google-Anmeldung lädt noch. Bitte gleich nochmal tippen.':'Keine Internetverbindung.'); return; } afterToken=action; tokenClient.requestAccessToken({prompt:''}); }
+async function api(url,opts={}) { const res=await fetch(url,{...opts,headers:{Authorization:`Bearer ${sync.token}`,'Content-Type':'application/json'}}); if(res.status===401){sync.token=null;throw new Error('Anmeldung abgelaufen. Bitte nochmal hochladen.');} const body=await res.json().catch(()=>({})); if(!res.ok) throw new Error(body.error?.message||`Google meldet Fehler ${res.status}.`); return body; }
+const SHEETS='https://sheets.googleapis.com/v4/spreadsheets';
+async function ensureSheet() {
+  if (!sync.sheetId) {
+    const q=encodeURIComponent(`name='${SHEET_TITLE}' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false`);
+    const found=await api(`https://www.googleapis.com/drive/v3/files?q=${q}&orderBy=modifiedTime desc&fields=files(id)`);
+    sync.sheetId=found.files?.[0]?.id;
+  }
+  if (!sync.sheetId) { const created=await api(SHEETS,{method:'POST',body:JSON.stringify({properties:{title:SHEET_TITLE},sheets:[{properties:{title:TAB}}]})}); sync.sheetId=created.spreadsheetId; saveSync(); return; }
+  const meta=await api(`${SHEETS}/${sync.sheetId}?fields=sheets.properties.title`);
+  if (!meta.sheets.some(s=>s.properties.title===TAB)) await api(`${SHEETS}/${sync.sheetId}:batchUpdate`,{method:'POST',body:JSON.stringify({requests:[{addSheet:{properties:{title:TAB}}}]})});
+}
+function rows() {
+  const days=Object.keys(entries).filter(day=>Object.values(entries[day]??{}).some(Number.isInteger)).sort();
+  return [['Datum','Morgen','Nachmittag','Abend'],...days.map(day=>[day,...PERIODS.map(({key})=>entries[day]?.[key] ?? '')])];
+}
+async function upload() {
+  if (syncing) return; syncing=true; syncError=''; $('syncMsg').textContent='Lade ins Sheet hoch …'; $('syncMsg').classList.remove('err'); $('syncGo').disabled=true;
+  try {
+    await ensureSheet();
+    await api(`${SHEETS}/${sync.sheetId}/values/${encodeURIComponent(`'${TAB}'`)}:clear`,{method:'POST',body:'{}'});
+    await api(`${SHEETS}/${sync.sheetId}/values/${encodeURIComponent(`'${TAB}'!A1`)}?valueInputOption=RAW`,{method:'PUT',body:JSON.stringify({majorDimension:'ROWS',values:rows()})});
+    sync.lastSync=Date.now(); saveSync(); syncError='';
+  } catch(err) { syncError=err.message||String(err); }
+  finally { syncing=false; refreshSyncUI(); }
+}
+function fail(message) { syncError=message; refreshSyncUI(); }
+function refreshSyncUI() {
+  $('syncStatus').innerHTML=syncError?`Sync fehlgeschlagen<small>${escapeHtml(syncError)}</small>`:sync.lastSync?`Zuletzt synchronisiert · ${new Date(sync.lastSync).toLocaleString('de-DE',{dateStyle:'medium',timeStyle:'short'})}<small>Hochladen ersetzt die Daten im Sheet.</small>`:'Mit Google Sheets verbinden<small>Einträge als Tageszeilen sichern</small>';
+  if (!$('syncDlg').open) return;
+  $('syncMsg').textContent=syncing?'Lade ins Sheet hoch …':syncError||(sync.lastSync?`Zuletzt synchronisiert: ${new Date(sync.lastSync).toLocaleString('de-DE')}`:'');
+  $('syncMsg').classList.toggle('err',!!syncError); $('syncGo').disabled=syncing; $('syncOpen').hidden=!sync.sheetId; $('syncDisconnect').hidden=!sync.sheetId;
+  if(sync.sheetId) $('syncOpen').href=`https://docs.google.com/spreadsheets/d/${sync.sheetId}/edit`;
+}
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+$('date').value=localDate(); buildPeriods(); renderDay(); renderHistory(); refreshSyncUI(); loadGis();
+$('date').addEventListener('change',renderDay); $('prevDay').addEventListener('click',()=>{$('date').value=shiftDate($('date').value,-1);renderDay();}); $('nextDay').addEventListener('click',()=>{$('date').value=shiftDate($('date').value,1);renderDay();}); $('goToday').addEventListener('click',()=>{$('date').value=localDate();renderDay();});
+$('syncLine').addEventListener('click',()=>{syncError='';$('syncDlg').showModal();refreshSyncUI();}); $('syncClose').addEventListener('click',()=>$('syncDlg').close()); $('syncGo').addEventListener('click',()=>withToken(upload));
+$('syncDisconnect').addEventListener('click',()=>{if(sync.token)google?.accounts?.oauth2?.revoke(sync.token,()=>{});sync={};saveSync();refreshSyncUI();});
+if ('serviceWorker' in navigator) window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+</script>
+</body>
+</html>
