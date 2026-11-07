@@ -1,4 +1,4 @@
-const CACHE = 'moodtracker-v1';
+const CACHE = 'moodtracker-v3';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon.svg'];
 self.addEventListener('install', event => {
   const fresh = FILES.map(file => new Request(file, {cache:'reload'}));
