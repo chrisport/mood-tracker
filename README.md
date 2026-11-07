@@ -12,7 +12,7 @@ Aktiviere in den Repository-Einstellungen unter **Pages** die Veröffentlichung 
 
 Die App verwendet dieselbe OAuth-Webclient-ID wie `custom-timer`. In der Google Cloud Console muss die Ursprungsdomain bereits als autorisierter JavaScript-Ursprung eingetragen sein (zum Beispiel `https://<benutzer>.github.io`). Ein eigener Pfad pro Repository braucht keinen zusätzlichen OAuth-Ursprung.
 
-Beim ersten Upload legt die App ein Sheet namens **Stimmungstagebuch (moodtracker)** in Google Drive an. Der Tab **Stimmung** hat die Spalten `Datum`, `Morgen`, `Nachmittag`, `Abend`, `Notizen`. Jede Zeile enthält einen Tag und dessen optionale Notiz. Ein Upload überschreibt den Inhalt dieses Tabs mit den lokalen Einträgen.
+Beim ersten Upload legt die App ein Sheet namens **Stimmungstagebuch (moodtracker)** in Google Drive an. Der Tab **Stimmung** hat die Spalten `Datum`, `Morgen`, `Nachmittag`, `Abend`, `Notizen`. Jede Zeile enthält einen Tag und dessen optionale Notiz. Der Tab **Wochentage** zeigt für Montag bis Sonntag je Zeitraum die Anzahl der Bewertungen und den Durchschnittswert. Ein Upload aktualisiert beide Tabs aus den lokalen Einträgen.
 
 ## Lokal ansehen
 

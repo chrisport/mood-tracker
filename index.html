@@ -83,7 +83,7 @@
 <script>
 const CLIENT_ID = '1019469281637-cvr48b89o8j5umaeoai43fdbps938nm6.apps.googleusercontent.com';
 const SCOPE = 'https://www.googleapis.com/auth/drive.file';
-const SHEET_TITLE = 'Stimmungstagebuch (moodtracker)', TAB = 'Stimmung';
+const SHEET_TITLE = 'Stimmungstagebuch (moodtracker)', TAB = 'Stimmung', STATS_TAB = 'Wochentage';
 const STORAGE_KEY = 'moodtracker.entries.v1', SYNC_KEY = 'moodtracker.sync.v1';
 const $ = id => document.getElementById(id);
 const PERIODS = [{key:'morning', label:'Morgen'}, {key:'afternoon', label:'Nachmittag'}, {key:'evening', label:'Abend'}];
@@ -144,20 +144,33 @@ async function ensureSheet() {
     const found=await api(`https://www.googleapis.com/drive/v3/files?q=${q}&orderBy=modifiedTime desc&fields=files(id)`);
     sync.sheetId=found.files?.[0]?.id;
   }
-  if (!sync.sheetId) { const created=await api(SHEETS,{method:'POST',body:JSON.stringify({properties:{title:SHEET_TITLE},sheets:[{properties:{title:TAB}}]})}); sync.sheetId=created.spreadsheetId; saveSync(); return; }
+  if (!sync.sheetId) { const created=await api(SHEETS,{method:'POST',body:JSON.stringify({properties:{title:SHEET_TITLE},sheets:[{properties:{title:TAB}},{properties:{title:STATS_TAB}}]})}); sync.sheetId=created.spreadsheetId; saveSync(); return; }
   const meta=await api(`${SHEETS}/${sync.sheetId}?fields=sheets.properties.title`);
-  if (!meta.sheets.some(s=>s.properties.title===TAB)) await api(`${SHEETS}/${sync.sheetId}:batchUpdate`,{method:'POST',body:JSON.stringify({requests:[{addSheet:{properties:{title:TAB}}}]})});
+  const titles=new Set(meta.sheets.map(s=>s.properties.title));
+  const missing=[TAB,STATS_TAB].filter(title=>!titles.has(title));
+  if (missing.length) await api(`${SHEETS}/${sync.sheetId}:batchUpdate`,{method:'POST',body:JSON.stringify({requests:missing.map(title=>({addSheet:{properties:{title}}}))})});
 }
 function rows() {
   const days=Object.keys(entries).filter(day=>Object.values(entries[day]??{}).some(Number.isInteger) || entries[day]?.note).sort();
   return [['Datum','Morgen','Nachmittag','Abend','Notizen'],...days.map(day=>[day,...PERIODS.map(({key})=>entries[day]?.[key] ?? ''),entries[day]?.note ?? ''])];
 }
+function weekdayRows() {
+  const names=['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag','Sonntag'];
+  const values=names.map((name,index)=>({name,day:index+1,periods:PERIODS.map(()=>[])}));
+  for (const [date,entry] of Object.entries(entries)) {
+    const weekday=(new Date(`${date}T12:00:00`).getDay()+6)%7;
+    PERIODS.forEach(({key},i)=>{ if (Number.isInteger(entry?.[key]) && entry[key]>=1 && entry[key]<=10) values[weekday].periods[i].push(entry[key]); });
+  }
+  return [['Wochentag','Morgen n','Morgen Ø','Nachmittag n','Nachmittag Ø','Abend n','Abend Ø'],...values.map(({name,periods})=>[name,...periods.flatMap(scores=>[scores.length,scores.length?Math.round(scores.reduce((sum,n)=>sum+n,0)/scores.length*100)/100:''])])];
+}
 async function upload() {
   if (syncing) return; syncing=true; syncError=''; $('syncMsg').textContent='Lade ins Sheet hoch …'; $('syncMsg').classList.remove('err'); $('syncGo').disabled=true;
   try {
     await ensureSheet();
-    await api(`${SHEETS}/${sync.sheetId}/values/${encodeURIComponent(`'${TAB}'`)}:clear`,{method:'POST',body:'{}'});
-    await api(`${SHEETS}/${sync.sheetId}/values/${encodeURIComponent(`'${TAB}'!A1`)}?valueInputOption=RAW`,{method:'PUT',body:JSON.stringify({majorDimension:'ROWS',values:rows()})});
+    for (const tab of [TAB,STATS_TAB]) await api(`${SHEETS}/${sync.sheetId}/values/${encodeURIComponent(`'${tab}'`)}:clear`,{method:'POST',body:'{}'});
+    const writeTab=(tab,values)=>api(`${SHEETS}/${sync.sheetId}/values/${encodeURIComponent(`'${tab}'!A1`)}?valueInputOption=RAW`,{method:'PUT',body:JSON.stringify({majorDimension:'ROWS',values})});
+    await writeTab(TAB,rows());
+    await writeTab(STATS_TAB,weekdayRows());
     sync.lastSync=Date.now(); saveSync(); syncError='';
   } catch(err) { syncError=err.message||String(err); }
   finally { syncing=false; refreshSyncUI(); }
