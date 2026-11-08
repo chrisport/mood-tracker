@@ -6,6 +6,10 @@ Eine statische, mobilfreundliche Web-App zum Erfassen der Stimmung am Morgen, Na
 
 Dieses Repository kann als eigenes GitHub-Repository veröffentlicht werden. Bei einem Projekt-Repository ist die App unter `https://<benutzer>.github.io/<repository>/` erreichbar. Relative Links und der Service Worker funktionieren auch in diesem Unterpfad.
 
+Das Manifest hat eine eigene App-ID und 192×192-, 512×512- sowie maskierbare PNG-Icons, damit Android die Stimmungstagebuch-App getrennt vom Timer installieren kann.
+
+Die kleine Versionsnummer neben dem Titel folgt der Service-Worker-Version und wird bei jedem App-Update erhöht.
+
 Aktiviere in den Repository-Einstellungen unter **Pages** die Veröffentlichung aus dem gewünschten Branch und Ordner (üblicherweise `main` und `/ (root)`).
 
 ## Google Sheets

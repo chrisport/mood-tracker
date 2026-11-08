@@ -1,6 +1,6 @@
-const CACHE = 'moodtracker-v9';
+const CACHE = 'moodtracker-v11';
 const CACHE_PREFIX = 'moodtracker-';
-const FILES = ['./', './index.html', './manifest.webmanifest', './icon.svg'];
+const FILES = ['./', './index.html', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png', './icon-512-maskable.png'];
 self.addEventListener('install', event => {
   const fresh = FILES.map(file => new Request(file, {cache:'reload'}));
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(fresh)).then(() => self.skipWaiting()));

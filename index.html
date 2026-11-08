@@ -59,7 +59,7 @@
 </style>
 </head>
 <body>
-<header><div><div class="title-line"><h1>Stimmungstagebuch</h1><span class="version" id="appVersion">v…</span></div><p>Kleine Check-ins über den Tag</p></div><button class="mark" id="themeToggle" type="button" aria-label="Dunkelmodus aktivieren" title="Dunkelmodus aktivieren">☀</button></header>
+<header><div><div class="title-line"><h1>Stimmungstagebuch</h1><span class="version" id="appVersion">v10</span></div><p>Kleine Check-ins über den Tag</p></div><button class="mark" id="themeToggle" type="button" aria-label="Dunkelmodus aktivieren" title="Dunkelmodus aktivieren">☀</button></header>
 <main>
   <div class="datebar">
     <button id="prevDay" aria-label="Vorheriger Tag">‹</button>
@@ -204,7 +204,7 @@ async function upload() {
     const statsSheet=meta.sheets.find(sheet=>sheet.properties.title===STATS_TAB).properties.sheetId;
     await api(`${SHEETS}/${sync.sheetId}:batchUpdate`,{method:'POST',body:JSON.stringify({requests:[
       {repeatCell:{range:{sheetId:moodSheet,startRowIndex:1,startColumnIndex:0,endColumnIndex:1},cell:{userEnteredFormat:{numberFormat:{type:'DATE',pattern:'dd.MM.yyyy'}}},fields:'userEnteredFormat.numberFormat'}},
-      ...[1,3].map(column=>({repeatCell:{range:{sheetId:statsSheet,startRowIndex:0,endRowIndex:1,startColumnIndex:column,endColumnIndex:column+1},cell:{userEnteredFormat:{numberFormat:{type:'DATE',pattern:'dd.MM.yyyy'},backgroundColor:{red:0.89,green:0.94,blue:0.91},textFormat:{bold:true}},userEnteredFormat:{numberFormat:{type:'DATE',pattern:'dd.MM.yyyy'},backgroundColor:{red:0.89,green:0.94,blue:0.91},textFormat:{bold:true}}},fields:'userEnteredFormat(numberFormat,backgroundColor,textFormat)'}})),
+      ...[1,3].map(column=>({repeatCell:{range:{sheetId:statsSheet,startRowIndex:0,endRowIndex:1,startColumnIndex:column,endColumnIndex:column+1},cell:{userEnteredFormat:{numberFormat:{type:'DATE',pattern:'dd.MM.yyyy'},backgroundColor:{red:0.89,green:0.94,blue:0.91},textFormat:{bold:true}}},fields:'userEnteredFormat(numberFormat,backgroundColor,textFormat)'}})),
       {repeatCell:{range:{sheetId:statsSheet,startRowIndex:0,endRowIndex:1,startColumnIndex:0,endColumnIndex:1},cell:{userEnteredFormat:{textFormat:{bold:true}}},fields:'userEnteredFormat.textFormat'}},
       {repeatCell:{range:{sheetId:statsSheet,startRowIndex:0,endRowIndex:1,startColumnIndex:2,endColumnIndex:3},cell:{userEnteredFormat:{textFormat:{bold:true}}},fields:'userEnteredFormat.textFormat'}},
       ...[1,3].map(column=>({setDataValidation:{range:{sheetId:statsSheet,startRowIndex:0,endRowIndex:1,startColumnIndex:column,endColumnIndex:column+1},rule:{condition:{type:'DATE_IS_VALID'},strict:true,showCustomUi:true}}})),
